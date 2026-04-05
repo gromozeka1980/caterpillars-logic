@@ -867,6 +867,9 @@ html, body {
 
 /* ——— Landscape phone: compact bottom section ——— */
 @media (orientation: landscape) and (max-height: 500px) {
+  .game-title { font-size: 1.3rem; }
+  .game-subtitle { font-size: 0.75rem; }
+  .chooser-screen { padding: 10px 16px; gap: 8px; }
   .top-bar { padding: 4px 8px; }
   .panel-header { padding: 3px; font-size: 0.7rem; }
 
