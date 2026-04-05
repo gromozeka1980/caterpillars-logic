@@ -1,0 +1,18 @@
+{
+  "name": "Caterpillar Logic",
+  "short_name": "CatLogic",
+  "description": "An inductive reasoning puzzle game",
+  "start_url": "/caterpillars-logic/",
+  "scope": "/caterpillars-logic/",
+  "display": "standalone",
+  "background_color": "#0f0e17",
+  "theme_color": "#0f0e17",
+  "icons": [
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
