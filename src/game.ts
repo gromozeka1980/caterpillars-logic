@@ -352,12 +352,12 @@ const TUTORIAL_HINTS: TutorialHintDef[] = [
   { text: 'Pick a color to start building a caterpillar.' },
   // 2: Add more segments
   { text: 'Add a few more segments.' },
-  // 3: Watch the face — hasNext becomes true dynamically once both expressions seen
+  // 3: Watch the face
   { text: 'Watch the caterpillar\u2019s face \u2014 it smiles if it matches the rule, frowns if it doesn\u2019t. Try both!' },
-  // 4: Explain the + button
-  { text: 'Press + to save a caterpillar to your board. This helps you compare and spot the pattern.', hasNext: true },
-  // 5: Free exploration + exam hint
-  { text: '', hasNext: true }, // dynamic text
+  // 4: Explain the + button (auto-advances on submit)
+  { text: 'Press + to save a caterpillar to your board. This helps you compare and spot the pattern.' },
+  // 5: Free exploration + exam hint (dynamic text)
+  { text: '' },
   // 6: Exam in progress — no hint
   { text: '' },
 ];
@@ -396,12 +396,8 @@ function renderTutorialHint() {
   const def = TUTORIAL_HINTS[step];
 
   let text = def.text;
-  let showNext = def.hasNext ?? false;
+  const showNext = def.hasNext ?? false;
 
-  // Step 3: show Continue only after both expressions seen
-  if (step === 3) {
-    showNext = state.tutorialSeenValid && state.tutorialSeenInvalid;
-  }
   // Step 5: dynamic text
   if (step === 5) {
     text = state.testedCount < 2
@@ -443,10 +439,13 @@ function advanceTutorial(action: 'addColor' | 'submit' | 'startExam') {
   } else if (step === 2 && action === 'addColor' && state.inputChain.length >= 3) {
     state.tutorialStep = 3;
     renderTutorialHint();
-  } else if (step === 5 && action === 'submit') {
-    // Update dynamic text after additional saves
+  } else if (step === 4 && action === 'submit') {
+    // After first save, move to free exploration
+    state.tutorialStep = 5;
     renderTutorialHint();
-  } else if ((step === 5 || step === 4) && action === 'startExam') {
+  } else if (step === 5 && action === 'submit') {
+    renderTutorialHint();
+  } else if ((step === 4 || step === 5) && action === 'startExam') {
     state.tutorialStep = 6;
     removeTutorialHint();
   }
@@ -684,8 +683,9 @@ function updateInputPreview() {
   if (state.isTutorial && state.tutorialStep === 3) {
     if (isValid) state.tutorialSeenValid = true;
     else state.tutorialSeenInvalid = true;
-    // Show "Continue" once both expressions seen
+    // Auto-advance to "explain +" step once both expressions seen
     if (state.tutorialSeenValid && state.tutorialSeenInvalid) {
+      state.tutorialStep = 4;
       renderTutorialHint();
     }
   }
