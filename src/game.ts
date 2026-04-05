@@ -2,7 +2,7 @@
 
 import { rules, type RuleFunc } from './rules';
 import { getValidInvalid, getN, type Sequence } from './utils';
-import { createCaterpillarCanvas, createAnimatedCaterpillar, COLORS, type EyeDirection, type Mood } from './caterpillar';
+import { createAnimatedCaterpillar, createIdleCaterpillar, COLORS, type EyeDirection, type Mood } from './caterpillar';
 import { ruleDescriptions } from './ruleDescriptions';
 import { launchConfetti } from './confetti';
 import { playClick, playPop, playValid, playInvalid, playSuccess, playWrong, playBackspace } from './sounds';
@@ -115,10 +115,13 @@ function toRGB(c: [number, number, number]): string {
   return `rgb(${Math.round(c[0] * 255)}, ${Math.round(c[1] * 255)}, ${Math.round(c[2] * 255)})`;
 }
 
+let idleStaggerCounter = 0;
+
 function renderCaterpillarItem(chain: Sequence, eyeDir: EyeDirection = 'forward', mood: Mood = 'neutral'): HTMLElement {
   const wrapper = el('div', 'caterpillar-item');
-  const canvas = createCaterpillarCanvas(chain, gameLayout.catW, gameLayout.catH, eyeDir, mood);
-  wrapper.appendChild(canvas);
+  const idle = createIdleCaterpillar(chain, gameLayout.catW, gameLayout.catH, eyeDir, mood, idleStaggerCounter++);
+  wrapper.appendChild(idle.canvas);
+  state.animatedInstances.push(idle);
   return wrapper;
 }
 
@@ -353,7 +356,7 @@ const TUTORIAL_HINTS: TutorialHintDef[] = [
   // 2: Add more segments
   { text: 'Add a few more segments.' },
   // 3: Watch the face
-  { text: 'Watch the caterpillar\u2019s face \u2014 it smiles if it matches the rule, frowns if it doesn\u2019t. Try both!' },
+  { text: 'Watch the caterpillar\u2019s face \u2014 it smiles if it\u2019s valid, frowns if it\u2019s not. Try both!' },
   // 4: Explain the + button (auto-advances on submit)
   { text: 'Press + to save a caterpillar to your board. This helps you compare and spot the pattern.' },
   // 5: Free exploration + exam hint (dynamic text)
@@ -520,6 +523,7 @@ function startLevel(levelId: number) {
 
 function renderLevel() {
   gameLayout = calcGameLayout();
+  idleStaggerCounter = 0;
   clearScreen();
   const app = document.getElementById('app')!;
   const container = el('div', 'level-screen');
@@ -573,7 +577,7 @@ function renderLevel() {
     validList.style.alignContent = 'space-evenly';
   }
   for (const seq of state.validHistory) {
-    validList.appendChild(renderCaterpillarItem(seq, 'left', 'happy'));
+    validList.appendChild(renderCaterpillarItem(seq, 'forward', 'happy'));
   }
   validPanel.appendChild(validList);
   historyArea.appendChild(validPanel);
@@ -590,7 +594,7 @@ function renderLevel() {
     invalidList.style.alignContent = 'space-evenly';
   }
   for (const seq of state.invalidHistory) {
-    invalidList.appendChild(renderCaterpillarItem(seq, 'right', 'sad'));
+    invalidList.appendChild(renderCaterpillarItem(seq, 'forward', 'sad'));
   }
   invalidPanel.appendChild(invalidList);
   historyArea.appendChild(invalidPanel);
@@ -669,11 +673,9 @@ function updateInputPreview() {
 
   if (state.inputChain.length === 0) return;
 
-  let eyeDir: EyeDirection = 'right';
   let mood: Mood = 'sad';
   const isValid = state.currentRule && state.currentRule(state.inputChain);
   if (isValid) {
-    eyeDir = 'left';
     mood = 'happy';
   }
 
@@ -690,9 +692,9 @@ function updateInputPreview() {
     }
   }
 
-  // Use static canvas for instant response, no animation overhead
-  const canvas = createCaterpillarCanvas(state.inputChain, gameLayout.previewW, gameLayout.previewH, eyeDir, mood);
-  wrapper.appendChild(canvas);
+  const anim = createAnimatedCaterpillar(state.inputChain, gameLayout.previewW, gameLayout.previewH, 'forward', mood);
+  previewAnim = anim;
+  wrapper.appendChild(anim.canvas);
 }
 
 function addColor(c: number) {
@@ -728,10 +730,10 @@ function submitChain() {
 
   if (isValid) {
     playValid();
-    addToHistory(state.validHistory, chain, 'valid-list', 'left', 'happy');
+    addToHistory(state.validHistory, chain, 'valid-list', 'forward', 'happy');
   } else {
     playInvalid();
-    addToHistory(state.invalidHistory, chain, 'invalid-list', 'right', 'sad');
+    addToHistory(state.invalidHistory, chain, 'invalid-list', 'forward', 'sad');
   }
 
   state.inputChain = [];
@@ -965,7 +967,7 @@ function showHelp() {
 
   // Animated demo caterpillar
   const demo = el('div', 'help-demo');
-  const anim = createAnimatedCaterpillar([0, 1, 2, 1, 0], 280, 56, 'left', 'happy');
+  const anim = createAnimatedCaterpillar([0, 1, 2, 1, 0], 280, 56, 'forward', 'happy');
   demo.appendChild(anim.canvas);
   state.animatedInstances.push(anim);
   container.appendChild(demo);
@@ -974,11 +976,12 @@ function showHelp() {
   text.innerHTML = `
     <p>Each level hides a secret <strong>rule</strong> about caterpillar color patterns. Your goal: figure out the rule!</p>
     <p>You start with examples: caterpillars on the <span class="hl-valid">left are valid</span> (match the rule) and on the <span class="hl-invalid">right are invalid</span> (don't match).</p>
-    <p>Build your own caterpillars to test hypotheses. Watch the eyes:</p>
+    <p>Build your own caterpillars to test hypotheses. Watch the face:</p>
     <ul>
-      <li><strong>Looks left + smiles</strong> = valid</li>
-      <li><strong>Looks right + frowns</strong> = invalid</li>
+      <li><strong>Smiles</strong> = valid</li>
+      <li><strong>Frowns</strong> = invalid</li>
     </ul>
+    <p>Press <strong>+</strong> to save a caterpillar to your board for comparison.</p>
     <p>When you're confident, take the <strong>exam</strong> — classify 15 caterpillars correctly in a row. One mistake and you're back to exploring.</p>
     <p>After passing, the rule is <strong>revealed</strong>. Earn up to 3 stars based on how many attempts it takes!</p>
     <p class="help-inspired">Inspired by <em>Zendo</em> and <em>Eleusis</em> — classic inductive reasoning games.</p>

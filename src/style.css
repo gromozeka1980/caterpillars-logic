@@ -447,7 +447,12 @@ html, body {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: #161528;
+}
+.valid-panel {
+  background: var(--valid-dim);
+}
+.invalid-panel {
+  background: var(--invalid-dim);
 }
 
 .panel-header {

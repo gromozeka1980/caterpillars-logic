@@ -243,6 +243,7 @@ export interface DrawOptions {
   mood?: Mood;
   time?: number;         // for animation
   animated?: boolean;
+  gazeOffset?: number;   // random offset for eye gaze cycle
 }
 
 export function drawCaterpillar(
@@ -278,7 +279,17 @@ export function drawCaterpillar(
     drawLegs(ctx, sx, y, segW, segH, color, time, i);
 
     if (i === 0) {
-      drawHead(ctx, eyeDirection, sx, y, segW, segH, color, last, {
+      // Animated gaze: eyes wander left/forward/right on a slow cycle
+      let gaze = eyeDirection;
+      if (opts.animated && time > 0) {
+        const gazeTime = time * 0.4 + (opts.gazeOffset ?? 0);
+        const gazeCycle = ((gazeTime % 6) + 6) % 6; // 0-6 cycle
+        if (gazeCycle < 2) gaze = 'forward';
+        else if (gazeCycle < 3) gaze = 'left';
+        else if (gazeCycle < 5) gaze = 'forward';
+        else gaze = 'right';
+      }
+      drawHead(ctx, gaze, sx, y, segW, segH, color, last, {
         blinkPhase: opts.blinkPhase,
         breatheScale: segBreathe,
         mood: opts.mood,
@@ -288,6 +299,110 @@ export function drawCaterpillar(
       drawSegment(ctx, sx, y, segW, segH, color, false, last, segBreathe);
     }
   }
+}
+
+function randomGaze(): EyeDirection {
+  const dirs: EyeDirection[] = ['forward', 'left', 'right'];
+  return dirs[Math.floor(Math.random() * dirs.length)];
+}
+
+/** Create a canvas that's mostly static but occasionally "wakes up" with a brief animation burst */
+export function createIdleCaterpillar(
+  chain: number[],
+  width: number,
+  height: number,
+  _eyeDirection: EyeDirection = 'forward',
+  mood: Mood = 'neutral',
+  stagger = 0
+): { canvas: HTMLCanvasElement; destroy: () => void } {
+  const canvas = document.createElement('canvas');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  canvas.style.maxWidth = `${width}px`;
+  canvas.style.width = '100%';
+  canvas.style.aspectRatio = `${width} / ${height}`;
+  canvas.style.height = 'auto';
+
+  const padTop = height * 0.18;
+  const padBot = height * 0.16;
+  const gazeOffset = Math.random() * 6;
+
+  // Draw initial static frame with random gaze
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(dpr, dpr);
+  drawCaterpillar(ctx, chain, 0, padTop, width, height - padTop - padBot, randomGaze(), { mood });
+
+  let animId = 0;
+  let awakeStart = 0;
+  let nextWake = performance.now() + 2000 + stagger * 600 + Math.random() * 4000;
+  const awakeDuration = 2500;
+  let blinkPhase = 0;
+  let blinking = false;
+  let lastBlink = 0;
+  let sleeping = true;
+
+  function frame(now: number) {
+    if (sleeping) {
+      if (now >= nextWake) {
+        sleeping = false;
+        awakeStart = now;
+        lastBlink = now;
+      } else {
+        animId = requestAnimationFrame(frame);
+        return;
+      }
+    }
+
+    const elapsed = now - awakeStart;
+    if (elapsed > awakeDuration) {
+      // Go back to sleep — draw one final static frame with random gaze
+      sleeping = true;
+      nextWake = now + 3000 + Math.random() * 5000;
+      const c = canvas.getContext('2d')!;
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.clearRect(0, 0, width, height);
+      drawCaterpillar(c, chain, 0, padTop, width, height - padTop - padBot, randomGaze(), { mood });
+      animId = requestAnimationFrame(frame);
+      return;
+    }
+
+    const time = now / 1000;
+    const breathe = 1 + Math.sin(time * 2) * 0.015;
+
+    // Blinking
+    if (!blinking && now - lastBlink > 800 + Math.random() * 1200) {
+      blinking = true;
+      lastBlink = now;
+    }
+    if (blinking) {
+      const blinkElapsed = now - lastBlink;
+      if (blinkElapsed < 150) blinkPhase = blinkElapsed / 150;
+      else if (blinkElapsed < 300) blinkPhase = 1 - (blinkElapsed - 150) / 150;
+      else { blinkPhase = 0; blinking = false; }
+    }
+
+    const c = canvas.getContext('2d')!;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, width, height);
+    drawCaterpillar(c, chain, 0, padTop, width, height - padTop - padBot, 'forward', {
+      blinkPhase,
+      breatheScale: breathe,
+      mood,
+      time,
+      animated: true,
+      gazeOffset,
+    });
+
+    animId = requestAnimationFrame(frame);
+  }
+
+  animId = requestAnimationFrame(frame);
+
+  return {
+    canvas,
+    destroy: () => cancelAnimationFrame(animId),
+  };
 }
 
 /** Create a static canvas element with a caterpillar — scales proportionally */
@@ -320,7 +435,7 @@ export function createAnimatedCaterpillar(
   chain: number[],
   width: number,
   height: number,
-  eyeDirection: EyeDirection = 'forward',
+  _eyeDirection: EyeDirection = 'forward',
   mood: Mood = 'neutral'
 ): { canvas: HTMLCanvasElement; destroy: () => void } {
   const canvas = document.createElement('canvas');
@@ -336,6 +451,7 @@ export function createAnimatedCaterpillar(
   let lastBlink = 0;
   let blinkPhase = 0;
   let blinking = false;
+  const gazeOffset = Math.random() * 6;
 
   function frame(now: number) {
     const ctx = canvas.getContext('2d')!;
@@ -359,12 +475,13 @@ export function createAnimatedCaterpillar(
 
     const padTop = height * 0.18;
     const padBot = height * 0.16;
-    drawCaterpillar(ctx, chain, 0, padTop, width, height - padTop - padBot, eyeDirection, {
+    drawCaterpillar(ctx, chain, 0, padTop, width, height - padTop - padBot, 'forward', {
       blinkPhase,
       breatheScale: breathe,
       mood,
       time,
       animated: true,
+      gazeOffset,
     });
 
     animId = requestAnimationFrame(frame);
