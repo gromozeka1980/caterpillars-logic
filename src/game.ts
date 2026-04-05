@@ -536,13 +536,6 @@ function renderLevel() {
   const levelLabel = el('span', 'level-label', state.isTutorial ? 'Tutorial' : `Level ${state.currentLevel + 1}`);
   topBar.appendChild(levelLabel);
 
-  if (!state.isTutorial) {
-    // Tested counter
-    const counter = el('span', 'tested-counter');
-    counter.id = 'tested-counter';
-    counter.textContent = `Tested: ${state.testedCount}`;
-    topBar.appendChild(counter);
-  }
 
   container.appendChild(topBar);
 
@@ -725,8 +718,6 @@ function submitChain() {
 
   playPop();
   state.testedCount++;
-  const counterEl = document.getElementById('tested-counter');
-  if (counterEl) counterEl.textContent = `Tested: ${state.testedCount}`;
 
   if (isValid) {
     playValid();
@@ -891,7 +882,7 @@ function handleExamPass() {
     passed: true,
     stars: bestStars,
     attempts: state.examAttempts,
-    tested: state.testedCount,
+    tested: 0,
   });
   saveProgress();
 
@@ -922,7 +913,7 @@ function handleExamPass() {
   overlay.appendChild(reveal);
 
   const stats = el('div', 'victory-stats');
-  stats.innerHTML = `Caterpillars tested: <strong>${state.testedCount}</strong> &middot; Exam attempts: <strong>${state.examAttempts}</strong>`;
+  stats.innerHTML = `Exam attempts: <strong>${state.examAttempts}</strong>`;
   overlay.appendChild(stats);
 
   const nextBtn = el('button', 'next-level-btn');
